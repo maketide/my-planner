@@ -185,19 +185,17 @@ body { padding: 10px; }
   border-bottom: 2px solid #b0a898;
 }
 
-/* 날짜 입력칸 모바일 최적화 */
-.todo-datetime-row {
-  flex-direction: column;
-  gap: 4px;
+/* 날짜/시간 모바일에서도 한 줄 유지 */
+.todo-date-input {
+  flex: 3;
+  padding: 8px 6px;
+  font-size: 12px;
 }
 
-.todo-date-input, .todo-time-select {
-  width: 100%;
-  padding: 7px 10px;
-  font-size: 13px;
-  border: 1px solid var(--border2);
-  border-radius: 7px;
-  background: white;
+.todo-time-select {
+  flex: 1;
+  padding: 8px 2px;
+  font-size: 11px;
 }
 ```
 
@@ -343,19 +341,20 @@ border-bottom: 1px solid var(–border);
 background: var(–surface2);
 }
 
-.todo-add-row { display: flex; gap: 5px; margin-bottom: 5px; }
+.todo-add-row { display: flex; gap: 5px; margin-bottom: 5px; align-items: center; }
 
 .todo-input {
 flex: 1;
-padding: 6px 9px;
+padding: 8px 10px;
 border: 1px solid var(–border2);
 border-radius: 6px;
-font-size: 12px;
+font-size: 13px;
 font-family: ‘Noto Sans KR’, sans-serif;
 background: white;
 color: var(–text-primary);
 outline: none;
 transition: border 0.2s;
+height: 36px;
 }
 
 .todo-input:focus { border-color: var(–accent); }
@@ -363,11 +362,30 @@ transition: border 0.2s;
 
 .todo-add-options { display: flex; gap: 5px; align-items: center; }
 
-.todo-datetime-row { display: flex; gap: 5px; margin-bottom: 5px; }
+.todo-datetime-row {
+display: flex;
+gap: 5px;
+margin-bottom: 5px;
+}
 
-.todo-date-input, .todo-time-select {
+.todo-date-input {
+flex: 3;
+padding: 7px 8px;
+border: 1px solid var(–border2);
+border-radius: 6px;
+font-size: 12px;
+font-family: ‘Noto Sans KR’, sans-serif;
+background: white;
+color: var(–text-primary);
+outline: none;
+cursor: pointer;
+transition: border 0.2s;
+min-width: 0;
+}
+
+.todo-time-select {
 flex: 1;
-padding: 5px 7px;
+padding: 7px 4px;
 border: 1px solid var(–border2);
 border-radius: 6px;
 font-size: 11px;
@@ -377,6 +395,7 @@ color: var(–text-primary);
 outline: none;
 cursor: pointer;
 transition: border 0.2s;
+min-width: 0;
 }
 
 .todo-date-input:focus, .todo-time-select:focus { border-color: var(–accent); }
@@ -417,9 +436,10 @@ outline: none;
 background: none;
 border: 1px solid var(–border2);
 border-radius: 6px;
-width: 28px; height: 26px;
+width: 36px; height: 36px;
+flex-shrink: 0;
 cursor: pointer;
-font-size: 13px;
+font-size: 18px;
 color: var(–text-muted);
 display: flex; align-items: center; justify-content: center;
 transition: all 0.2s;
@@ -838,14 +858,15 @@ cursor: pointer; color: white;
 
 <!-- ADD TODO -->
 <div class="todo-add-area">
+  <!-- 1행: 할일 입력 -->
   <div class="todo-add-row">
     <input class="todo-input" id="todoInput" type="text" placeholder="새 할일 입력..." maxlength="40">
-    <button class="star-toggle" id="starToggle" onclick="toggleStar()">☆</button>
   </div>
+  <!-- 2행: 날짜(75%) + 시간(25%) 한 줄 -->
   <div class="todo-datetime-row">
     <input class="todo-date-input" id="todoDateInput" type="date">
     <select class="todo-time-select" id="todoTimeSelect">
-      <option value="">⏰ 시간 선택</option>
+      <option value="">⏰ 시간</option>
       <option value="7">07:00</option>
       <option value="8">08:00</option>
       <option value="9">09:00</option>
@@ -864,11 +885,13 @@ cursor: pointer; color: white;
       <option value="22">22:00</option>
     </select>
   </div>
+  <!-- 3행: 구분(개인/업무) + 중요★ + 추가버튼 -->
   <div class="todo-add-options">
     <select class="type-select" id="typeSelect">
       <option value="personal">👤 개인</option>
       <option value="work">💼 업무</option>
     </select>
+    <button class="star-toggle" id="starToggle" onclick="toggleStar()">☆</button>
     <button class="add-btn" onclick="addTodo()">+ 추가</button>
   </div>
 </div>
