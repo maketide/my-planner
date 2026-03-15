@@ -682,7 +682,7 @@ display: flex; flex-direction: column;
 align-items: center; padding: 5px 3px 3px;
 transition: all 0.1s;
 background: var(–surface);
-position: relative; min-height: 50px;
+position: relative; min-height: 44px;
 }
 
 .cal-day:hover { border-color: var(–border2); background: var(–surface2); transform: scale(1.03); }
@@ -699,8 +699,8 @@ position: relative; min-height: 50px;
 
 .day-num { font-size: 12px; font-weight: 500; font-family: ‘DM Mono’, monospace; line-height: 1; margin-bottom: 2px; color: var(–text-primary); }
 
-.day-dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
-.day-dot { width: 3px; height: 3px; border-radius: 50%; }
+.day-dots { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; margin-top: 2px; }
+.day-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 
 /* CAL EVENTS */
 .cal-events-section { border-top: 1px solid var(–border); padding: 10px 14px; }
@@ -1313,7 +1313,7 @@ function renderCalendar() {
     // 캘린더 일정
     const calEvts = state.calEvents[dateStr] || [];
     // 해당 날짜 지정 할일
-    const todoEvts = state.todos.filter(t => t.date === dateStr);
+    const todoEvts = state.todos.filter(t => t.date === dateStr && !t.done);
     const hasAny = calEvts.length > 0 || todoEvts.length > 0;
 
     const cls = ['cal-day',
@@ -1324,7 +1324,7 @@ function renderCalendar() {
 
     // 할일 dot: 개인=파랑, 업무=초록, 중요=빨강
     const todoDots = todoEvts.slice(0,3).map(t => {
-      const color = isToday ? 'rgba(255,255,255,0.8)'
+      const color = isToday ? 'rgba(255,255,255,0.95)'
         : t.important ? 'var(--important)'
         : t.type === 'personal' ? 'var(--personal)'
         : 'var(--work)';
