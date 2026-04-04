@@ -138,11 +138,16 @@
     align-items: stretch;
   }
 
-  /* 1,2번 패널 같은 높이로 */
-  .main-layout > .panel:nth-child(1),
+  /* 1번 패널 */
+  .main-layout > .panel:nth-child(1) {
+    display: flex;
+    flex-direction: column;
+  }
+  /* 2번 패널 */
   .main-layout > .panel:nth-child(2) {
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   /* ===== 태블릿 (769px ~ 1100px) ===== */
@@ -653,14 +658,22 @@
     font-weight: 500;
   }
 
-  .schedule-body { flex: 1; overflow-y: auto; min-height: 0; }
+  .schedule-body {
+    overflow: hidden;
+    display: block;
+    width: 100%;
+  }
   .schedule-body::-webkit-scrollbar { width: 3px; }
   .schedule-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
   .time-row {
-    display: flex; min-height: 40px;
+    display: flex;
     border-bottom: 1px solid var(--border);
-    position: relative; transition: background 0.1s;
+    position: relative;
+    transition: background 0.1s;
+    align-items: flex-start;
+    overflow: hidden;
+    box-sizing: border-box;
   }
 
   .time-row:last-child { border-bottom: none; }
@@ -670,7 +683,7 @@
     width: 44px; flex-shrink: 0;
     font-family: 'DM Mono', monospace;
     font-size: 9px; color: var(--text-muted);
-    padding: 8px 6px 6px 10px;
+    padding: 4px 6px 0 10px;
     border-right: 1px solid var(--border);
   }
 
@@ -698,6 +711,7 @@
     font-size: 14px; line-height: 1;
     display: flex; align-items: center; justify-content: center;
     transition: opacity 0.1s; margin: auto 4px auto 0;
+    flex-shrink: 0;
   }
 
   .time-row:hover .time-add-btn { opacity: 1; }
@@ -917,6 +931,13 @@
         <input class="todo-date-input" id="todoDateInput" type="date">
         <select class="todo-time-select" id="todoTimeSelect">
           <option value="">⏰ 시간</option>
+          <option value="0">00:00</option>
+          <option value="1">01:00</option>
+          <option value="2">02:00</option>
+          <option value="3">03:00</option>
+          <option value="4">04:00</option>
+          <option value="5">05:00</option>
+          <option value="6">06:00</option>
           <option value="7">07:00</option>
           <option value="8">08:00</option>
           <option value="9">09:00</option>
@@ -933,6 +954,8 @@
           <option value="20">20:00</option>
           <option value="21">21:00</option>
           <option value="22">22:00</option>
+          <option value="23">23:00</option>
+          <option value="24">24:00</option>
         </select>
       </div>
       <!-- 3행: 구분(개인/업무) + 중요★ + 추가버튼 -->
@@ -1045,7 +1068,7 @@
 const MONTH_NAMES_KO = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 const MONTH_NAMES_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAY_NAMES = ['일','월','화','수','목','금','토'];
-const HOURS = [7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
+const HOURS = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24];
 
 // Current view month
 let viewYear = new Date().getFullYear();
@@ -1152,6 +1175,8 @@ window.onload = () => {
 
   renderAll();
   bindEvents();
+
+  // 폰트/이미지 완전 로드 후 높이 재계산
 };
 
 function renderAll() {
@@ -1238,6 +1263,8 @@ function bindEvents() {
   document.getElementById('modalOverlay').addEventListener('click', function(e) {
     if(e.target === this) closeModal();
   });
+  window.addEventListener('resize', () => { setTimeout(fitScheduleToPanel, 100); });
+
 }
 
 // ================================================================
@@ -1585,6 +1612,49 @@ function deleteScheduleEvent(slotKey, id) {
   state.scheduleEvents[slotKey] = (state.scheduleEvents[slotKey]||[]).filter(e => e.id !== id);
   renderSchedule();
   autoSave();
+}
+
+function fitScheduleToPanel() {
+  if (window.innerWidth <= 1100) return;
+
+  const col1 = document.querySelector('.main-layout > .panel:nth-child(1)');
+  const col2 = document.querySelector('.main-layout > .panel:nth-child(2)');
+  const scheduleBody = document.getElementById('scheduleBody');
+  const fbDiary = document.getElementById('fbDiary');
+  if (!col1 || !col2 || !scheduleBody || !fbDiary) return;
+
+  // 먼저 col2 시간표 높이 계산 (헤더 2개 제외)
+  const ph = col2.querySelector('.panel-header')?.offsetHeight || 0;
+  const sh = col2.querySelector('.schedule-header-row')?.offsetHeight || 0;
+
+  // col1 현재 높이
+  const col1H = col1.offsetHeight;
+
+  // col2에서 시간표에 줄 수 있는 높이 = col1H - 헤더들
+  const bodyH = col1H - ph - sh;
+  if (bodyH <= 0) return;
+
+  // scheduleBody 높이 적용
+  scheduleBody.style.height = bodyH + 'px';
+  scheduleBody.style.overflow = 'hidden';
+
+  // 각 time-row 균등 분배
+  const rows = scheduleBody.querySelectorAll('.time-row');
+  if (!rows.length) return;
+
+  const rowH = Math.floor(bodyH / rows.length);
+  const lastH = bodyH - rowH * (rows.length - 1);
+
+  rows.forEach((r, i) => {
+    const h = i === rows.length - 1 ? lastH : rowH;
+    r.style.height = h + 'px';
+    r.style.minHeight = h + 'px';
+    r.style.maxHeight = h + 'px';
+  });
+
+  // col2 높이를 col1과 맞추기
+  col2.style.height = col1H + 'px';
+  col2.style.overflow = 'hidden';
 }
 
 // ================================================================
