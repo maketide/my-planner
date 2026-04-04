@@ -7,6 +7,45 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="JG">
 <link rel="apple-touch-icon" href="icon.png">
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBQFAAzz2ghuPYsyqLfwDVx-f0r_XF4G08",
+    authDomain: "jg-planner-2ebc5.firebaseapp.com",
+    projectId: "jg-planner-2ebc5",
+    storageBucket: "jg-planner-2ebc5.firebasestorage.app",
+    messagingSenderId: "78441738655",
+    appId: "1:78441738655:web:f87bb3d0a0a10a5fae8daa"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  // 전역으로 노출
+  window._db = db;
+  window._doc = doc;
+  window._setDoc = setDoc;
+  window._getDoc = getDoc;
+  window._firebaseReady = false;
+
+  // 익명 로그인
+  signInAnonymously(auth).then(() => {
+    window._firebaseReady = true;
+    window._userId = auth.currentUser.uid;
+    console.log('Firebase 연결됨, UID:', window._userId);
+    // Firebase 준비되면 앱 초기화
+    if (!window._appStarted && window._initApp) { window._appStarted = true; window._initApp(); }
+  }).catch(e => {
+    console.warn('Firebase 익명 로그인 실패, localStorage로 대체:', e);
+    window._firebaseReady = false;
+    if (!window._appStarted && window._initApp) { window._appStarted = true; window._initApp(); }
+  });
+</script>
 <title>JG</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
 <style>
@@ -1099,67 +1138,106 @@ const todayDate = new Date();
 const TODAY_STR = `${todayDate.getFullYear()}-${String(todayDate.getMonth()+1).padStart(2,'0')}-${String(todayDate.getDate()).padStart(2,'0')}`;
 
 // ================================================================
-// LOCALSTORAGE
+// STORAGE (Firebase 우선, localStorage 폴백)
 // ================================================================
 function getMonthKey(y, m) {
   return `${y}-${String(m+1).padStart(2,'0')}`;
-}
-
-function saveState() {
-  const key = `planner_${currentMonthKey}`;
-  try {
-    localStorage.setItem(key, JSON.stringify(state));
-    localStorage.setItem('planner_nextId', nextId);
-    showSaved();
-  } catch(e) {
-    console.warn('저장 실패:', e);
-  }
-}
-
-function loadState(y, m) {
-  currentMonthKey = getMonthKey(y, m);
-  const key = `planner_${currentMonthKey}`;
-  const raw = localStorage.getItem(key);
-  const savedId = localStorage.getItem('planner_nextId');
-  if (savedId) nextId = parseInt(savedId) || 1;
-
-  if (raw) {
-    try {
-      state = JSON.parse(raw);
-      // ensure all fields
-      state.todos = state.todos || [];
-      state.coreGoal = state.coreGoal || '';
-      state.feedbacks = state.feedbacks || {};
-      state.calEvents = state.calEvents || {};
-      state.scheduleEvents = state.scheduleEvents || {};
-    } catch(e) {
-      resetState();
-    }
-  } else {
-    resetState();
-  }
 }
 
 function resetState() {
   state = {
     todos: [],
     coreGoal: '',
-    feedbacks: {},   // { '2026-03-14': { good, bad, next, diary } }
+    feedbacks: {},
     calEvents: {},
     scheduleEvents: {}
   };
 }
 
+// Firebase에 저장
+async function saveToFirebase() {
+  if (!window._firebaseReady || !window._db || !window._userId) return false;
+  try {
+    const docRef = window._doc(window._db, 'planners', window._userId, 'months', currentMonthKey);
+    await window._setDoc(docRef, { data: JSON.stringify(state), nextId, updatedAt: Date.now() });
+    return true;
+  } catch(e) {
+    console.warn('Firebase 저장 실패:', e);
+    return false;
+  }
+}
+
+// Firebase에서 불러오기
+async function loadFromFirebase(y, m) {
+  if (!window._firebaseReady || !window._db || !window._userId) return false;
+  try {
+    const key = getMonthKey(y, m);
+    const docRef = window._doc(window._db, 'planners', window._userId, 'months', key);
+    const snap = await window._getDoc(docRef);
+    if (snap.exists()) {
+      const d = snap.data();
+      if (d.nextId) nextId = d.nextId;
+      const parsed = JSON.parse(d.data);
+      state = parsed;
+      state.todos = state.todos || [];
+      state.coreGoal = state.coreGoal || '';
+      state.feedbacks = state.feedbacks || {};
+      state.calEvents = state.calEvents || {};
+      state.scheduleEvents = state.scheduleEvents || {};
+      return true;
+    }
+    return false;
+  } catch(e) {
+    console.warn('Firebase 불러오기 실패:', e);
+    return false;
+  }
+}
+
+async function saveState() {
+  // Firebase 저장 시도
+  const fbOk = await saveToFirebase();
+  // localStorage에도 항상 백업
+  try {
+    const key = `planner_${currentMonthKey}`;
+    localStorage.setItem(key, JSON.stringify(state));
+    localStorage.setItem('planner_nextId', nextId);
+  } catch(e) {}
+  showSaved();
+}
+
+async function loadState(y, m) {
+  currentMonthKey = getMonthKey(y, m);
+  // Firebase 먼저 시도
+  const fbOk = await loadFromFirebase(y, m);
+  if (!fbOk) {
+    // localStorage 폴백
+    const key = `planner_${currentMonthKey}`;
+    const raw = localStorage.getItem(key);
+    const savedId = localStorage.getItem('planner_nextId');
+    if (savedId) nextId = parseInt(savedId) || 1;
+    if (raw) {
+      try {
+        state = JSON.parse(raw);
+        state.todos = state.todos || [];
+        state.coreGoal = state.coreGoal || '';
+        state.feedbacks = state.feedbacks || {};
+        state.calEvents = state.calEvents || {};
+        state.scheduleEvents = state.scheduleEvents || {};
+      } catch(e) { resetState(); }
+    } else { resetState(); }
+  }
+}
+
 function autoSave() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveState, 600);
+  saveTimer = setTimeout(saveState, 800);
 }
 
 function showSaved() {
   const el = document.getElementById('saveIndicator');
   const txt = document.getElementById('saveText');
   el.classList.add('saved');
-  txt.textContent = '저장됨 ✓';
+  txt.textContent = '☁️ 저장됨';
   setTimeout(() => {
     el.classList.remove('saved');
     txt.textContent = '저장됨';
@@ -1193,15 +1271,15 @@ function renderAll() {
   loadFormFields();
 }
 
-function changeMonth(delta) {
+async function changeMonth(delta) {
   // Save current before switching
-  saveState();
+  await saveState();
 
   viewMonth += delta;
   if (viewMonth > 11) { viewMonth = 0; viewYear++; }
   if (viewMonth < 0)  { viewMonth = 11; viewYear--; }
 
-  loadState(viewYear, viewMonth);
+  await loadState(viewYear, viewMonth);
 
   // Set selected date to 1st of new month
   selectedDate = `${viewYear}-${String(viewMonth+1).padStart(2,'0')}-01`;
