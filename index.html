@@ -242,6 +242,27 @@
     color: var(--accent);
     padding: 2px 8px;
     border-radius: 10px;
+    transition: all 0.15s;
+  }
+
+  .panel-badge:hover { background: var(--accent); color: white; transform: scale(1.1); }
+  .panel-badge.open { background: var(--accent); color: white; }
+
+  .all-todo-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 6px;
+    border-radius: 6px;
+    margin-bottom: 3px;
+    font-size: 11px;
+    background: white;
+    border: 1px solid var(--border);
+  }
+
+  .all-todo-item.done-item .all-todo-text {
+    text-decoration: line-through;
+    color: var(--text-muted);
   }
 
   /* ===== CORE GOAL ===== */
@@ -335,12 +356,15 @@
     padding: 8px 12px;
     border-bottom: 1px solid var(--border);
     background: var(--surface2);
+    overflow: hidden;
   }
 
-  .todo-add-row { display: flex; gap: 5px; margin-bottom: 5px; align-items: center; }
+  .todo-add-row { display: flex; gap: 5px; margin-bottom: 5px; align-items: center; min-width: 0; }
 
   .todo-input {
     flex: 1;
+    min-width: 0;
+    width: 0;
     padding: 8px 10px;
     border: 1px solid var(--border2);
     border-radius: 6px;
@@ -356,12 +380,14 @@
   .todo-input:focus { border-color: var(--accent); }
   .todo-input::placeholder { color: var(--text-muted); }
 
-  .todo-add-options { display: flex; gap: 5px; align-items: center; }
+  .todo-add-options { display: flex; gap: 5px; align-items: center; min-width: 0; overflow: hidden; }
 
   .todo-datetime-row {
     display: flex;
     gap: 5px;
     margin-bottom: 5px;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .todo-date-input {
@@ -590,6 +616,19 @@
   .fb-good .feedback-textarea:focus { border-color: #4a9e6e; }
   .fb-bad  .feedback-textarea:focus { border-color: #c0392b; }
   .fb-next .feedback-textarea:focus { border-color: #3d6b9e; }
+  .fb-diary .fb-num { background: #7c5cbf; }
+  .fb-diary .feedback-item-label { color: #5a3d9e; }
+  .fb-diary .feedback-textarea:focus { border-color: #7c5cbf; }
+
+  .feedback-date-label {
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    color: var(--accent);
+    background: var(--accent-light);
+    padding: 2px 8px;
+    border-radius: 8px;
+    margin-left: auto;
+  }
 
   /* ===== SCHEDULE ===== */
   .schedule-header-row {
@@ -835,7 +874,15 @@
   <div class="panel">
     <div class="panel-header">
       <span class="panel-title">할일 목록</span>
-      <span class="panel-badge" id="todoBadge">0</span>
+      <button class="panel-badge" id="todoBadge" onclick="toggleAllTodos()" style="cursor:pointer;border:none;">0</button>
+    </div>
+    <!-- 전체 할일 펼침 패널 -->
+    <div id="allTodosPanel" style="display:none; border-bottom:1px solid var(--border); background:var(--surface2);">
+      <div style="padding:6px 12px 4px; font-size:10px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:var(--text-secondary); display:flex; justify-content:space-between; align-items:center;">
+        <span>📋 이날의 전체 할일</span>
+        <button onclick="toggleAllTodos()" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text-muted);">✕</button>
+      </div>
+      <div id="allTodosList" style="padding:0 12px 8px; max-height:200px; overflow-y:auto;"></div>
     </div>
 
     <!-- CORE GOAL -->
@@ -900,6 +947,7 @@
       <div class="feedback-header">
         <span>🔄</span>
         <span class="feedback-title">피드백 루프</span>
+        <span class="feedback-date-label" id="feedbackDateLabel">날짜 선택</span>
       </div>
       <div class="feedback-body">
         <div class="feedback-item fb-good">
@@ -913,6 +961,10 @@
         <div class="feedback-item fb-next">
           <div class="feedback-item-label"><div class="fb-num">3</div>내일의 개선책</div>
           <textarea class="feedback-textarea" id="fbNext" placeholder="내일은 어떻게 더 잘할 수 있을까요?" rows="2"></textarea>
+        </div>
+        <div class="feedback-item fb-diary">
+          <div class="feedback-item-label"><div class="fb-num">4</div>일기</div>
+          <textarea class="feedback-textarea" id="fbDiary" placeholder="오늘 하루를 기록해보세요..." rows="3"></textarea>
         </div>
       </div>
     </div>
@@ -997,7 +1049,7 @@ let currentMonthKey = '';
 let state = {
   todos: [],
   coreGoal: '',
-  feedback: { good: '', bad: '', next: '' },
+  feedbacks: {},   // { '2026-03-14': { good, bad, next, diary } }
   calEvents: {},     // { "2026-03-14": [{id, text}] }
   scheduleEvents: {} // { "2026-03-14-9": [{id, text}] }
 };
@@ -1042,7 +1094,7 @@ function loadState(y, m) {
       // ensure all fields
       state.todos = state.todos || [];
       state.coreGoal = state.coreGoal || '';
-      state.feedback = state.feedback || { good:'', bad:'', next:'' };
+      state.feedbacks = state.feedbacks || {};
       state.calEvents = state.calEvents || {};
       state.scheduleEvents = state.scheduleEvents || {};
     } catch(e) {
@@ -1057,7 +1109,7 @@ function resetState() {
   state = {
     todos: [],
     coreGoal: '',
-    feedback: { good: '', bad: '', next: '' },
+    feedbacks: {},   // { '2026-03-14': { good, bad, next, diary } }
     calEvents: {},
     scheduleEvents: {}
   };
@@ -1136,9 +1188,21 @@ function updateMonthNav() {
 
 function loadFormFields() {
   document.getElementById('coreGoalInput').value = state.coreGoal || '';
-  document.getElementById('fbGood').value = state.feedback?.good || '';
-  document.getElementById('fbBad').value = state.feedback?.bad || '';
-  document.getElementById('fbNext').value = state.feedback?.next || '';
+  loadFeedbackForDate(selectedDate);
+}
+
+function loadFeedbackForDate(dateStr) {
+  const fb = state.feedbacks?.[dateStr] || {};
+  document.getElementById('fbGood').value = fb.good || '';
+  document.getElementById('fbBad').value = fb.bad || '';
+  document.getElementById('fbNext').value = fb.next || '';
+  document.getElementById('fbDiary').value = fb.diary || '';
+
+  // 날짜 레이블 업데이트
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dow = new Date(y, m-1, d).getDay();
+  document.getElementById('feedbackDateLabel').textContent =
+    `${m}월 ${d}일 (${DAY_NAMES[dow]})`;
 }
 
 function bindEvents() {
@@ -1152,11 +1216,12 @@ function bindEvents() {
     autoSave();
   });
 
-  // Feedback auto-save
-  ['fbGood','fbBad','fbNext'].forEach(id => {
+  // Feedback auto-save (날짜별)
+  ['fbGood','fbBad','fbNext','fbDiary'].forEach(id => {
     document.getElementById(id).addEventListener('input', e => {
-      const map = { fbGood:'good', fbBad:'bad', fbNext:'next' };
-      state.feedback[map[id]] = e.target.value;
+      const map = { fbGood:'good', fbBad:'bad', fbNext:'next', fbDiary:'diary' };
+      if (!state.feedbacks[selectedDate]) state.feedbacks[selectedDate] = {};
+      state.feedbacks[selectedDate][map[id]] = e.target.value;
       autoSave();
     });
   });
@@ -1261,6 +1326,60 @@ function renderTodos() {
   }).join('');
 }
 
+function toggleAllTodos() {
+  const panel = document.getElementById('allTodosPanel');
+  const badge = document.getElementById('todoBadge');
+  const isOpen = panel.style.display !== 'none';
+
+  if (isOpen) {
+    panel.style.display = 'none';
+    badge.classList.remove('open');
+  } else {
+    panel.style.display = 'block';
+    badge.classList.add('open');
+    renderAllTodos();
+  }
+}
+
+function renderAllTodos() {
+  const list = document.getElementById('allTodosList');
+
+  // 선택한 날짜의 모든 할일 (날짜 지정 + 날짜 미지정 포함, 완료 포함)
+  const all = state.todos.filter(t =>
+    t.date ? t.date === selectedDate : true
+  );
+
+  if (all.length === 0) {
+    list.innerHTML = '<div class="empty-msg" style="padding:10px 0">이 날의 할일이 없습니다</div>';
+    return;
+  }
+
+  // 미완료 먼저, 완료 나중
+  const active = all.filter(t => !t.done);
+  const done = all.filter(t => t.done);
+  const sorted = [...active, ...done];
+
+  list.innerHTML = sorted.map(t => {
+    const typeColor = t.type === 'personal' ? 'var(--personal)' : 'var(--work)';
+    const typeLabel = t.type === 'personal' ? '개인' : '업무';
+    const typeClass = t.type === 'personal' ? 'type-personal' : 'type-work';
+    const timeBadge = t.hour !== null && t.hour !== undefined
+      ? `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-muted)">⏰${String(t.hour).padStart(2,'0')}:00</span>` : '';
+    const importantBadge = t.important ? `<span style="color:#e0a800;font-size:11px">★</span>` : '';
+    const doneBadge = t.done ? `<span style="font-size:9px;color:var(--text-muted);background:var(--surface2);padding:1px 5px;border-radius:3px;">완료</span>` : '';
+
+    return `
+    <div class="all-todo-item ${t.done ? 'done-item' : ''}">
+      <div style="width:18px;height:18px;border-radius:3px;border:2px solid ${t.done?'var(--accent)':'var(--border2)'};background:${t.done?'var(--accent)':'white'};display:flex;align-items:center;justify-content:center;font-size:10px;color:white;flex-shrink:0;cursor:pointer;" onclick="toggleTodoDone(${t.id});renderAllTodos();">${t.done?'✓':''}</div>
+      <span class="todo-type-badge ${typeClass}" style="font-size:8px;padding:1px 4px;flex-shrink:0">${typeLabel}</span>
+      <span class="all-todo-text" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.text}</span>
+      ${importantBadge}
+      ${timeBadge}
+      ${doneBadge}
+    </div>`;
+  }).join('');
+}
+
 function formatDateShort(dateStr) {
   if (!dateStr) return '';
   const [, m, d] = dateStr.split('-').map(Number);
@@ -1341,6 +1460,11 @@ function selectDate(dateStr) {
   renderTodos();
   renderImportant();
   renderSchedule();
+  loadFeedbackForDate(dateStr);
+  // 전체 패널 열려있으면 갱신
+  if (document.getElementById('allTodosPanel').style.display !== 'none') {
+    renderAllTodos();
+  }
 }
 
 function updateSelectedDate(dateStr) {
