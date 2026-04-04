@@ -10,8 +10,8 @@
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBQFAAzz2ghuPYsyqLfwDVx-f0r_XF4G08",
@@ -25,25 +25,73 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
 
-  // 전역으로 노출
+  // 전역 노출
   window._db = db;
   window._doc = doc;
   window._setDoc = setDoc;
   window._getDoc = getDoc;
   window._firebaseReady = false;
 
-  // 익명 로그인
-  signInAnonymously(auth).then(() => {
-    window._firebaseReady = true;
-    window._userId = auth.currentUser.uid;
-    console.log('Firebase 연결됨, UID:', window._userId);
-    // Firebase 준비되면 앱 초기화
-    if (!window._appStarted && window._initApp) { window._appStarted = true; window._initApp(); }
-  }).catch(e => {
-    console.warn('Firebase 익명 로그인 실패, localStorage로 대체:', e);
+  // Google 로그인 함수
+  window._googleLogin = async () => {
+    try {
+      const result = await signInWithPopup(auth, provider);
+      return result.user;
+    } catch(e) {
+      console.warn('Google 로그인 실패:', e);
+      return null;
+    }
+  };
+
+  // 로그아웃 함수
+  window._googleLogout = async () => {
+    await signOut(auth);
     window._firebaseReady = false;
-    if (!window._appStarted && window._initApp) { window._appStarted = true; window._initApp(); }
+    window._userId = null;
+    document.getElementById('loginBtn').style.display = 'flex';
+    document.getElementById('userInfo').style.display = 'none';
+  };
+
+  // 로그인 상태 감지
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      window._firebaseReady = true;
+      window._userId = user.uid;
+      window._userEmail = user.email;
+      window._userName = user.displayName;
+
+      // UI 업데이트
+      const loginBtn = document.getElementById('loginBtn');
+      const userInfo = document.getElementById('userInfo');
+      const userName = document.getElementById('userName');
+      if (loginBtn) loginBtn.style.display = 'none';
+      if (userInfo) userInfo.style.display = 'flex';
+      if (userName) userName.textContent = user.displayName || user.email;
+
+      // 앱 초기화
+      if (!window._appStarted && window._initApp) {
+        window._appStarted = true;
+        window._initApp();
+      } else if (window._appStarted) {
+        // 이미 시작됐으면 데이터 다시 로드
+        window._reloadData && window._reloadData();
+      }
+    } else {
+      window._firebaseReady = false;
+      window._userId = null;
+      const loginBtn = document.getElementById('loginBtn');
+      const userInfo = document.getElementById('userInfo');
+      if (loginBtn) loginBtn.style.display = 'flex';
+      if (userInfo) userInfo.style.display = 'none';
+
+      // 로그인 없이도 앱 시작 (localStorage만 사용)
+      if (!window._appStarted && window._initApp) {
+        window._appStarted = true;
+        window._initApp();
+      }
+    }
   });
 </script>
 <title>JG</title>
@@ -930,6 +978,30 @@
     <div class="save-dot"></div>
     <span id="saveText">저장됨</span>
   </div>
+
+  <!-- 로그인 버튼 -->
+  <button id="loginBtn" onclick="googleLogin()" style="
+    display:flex; align-items:center; gap:6px;
+    padding:6px 14px; border-radius:20px;
+    border:1px solid var(--border2); background:white;
+    font-size:12px; font-family:'Noto Sans KR',sans-serif;
+    cursor:pointer; color:var(--text-primary);
+    transition:all 0.2s;
+  ">
+    <img src="https://www.google.com/favicon.ico" width="14" height="14">
+    Google 로그인
+  </button>
+
+  <!-- 로그인 후 사용자 정보 -->
+  <div id="userInfo" style="display:none; align-items:center; gap:8px;">
+    <span id="userName" style="font-size:12px; color:var(--text-secondary);"></span>
+    <button onclick="googleLogout()" style="
+      padding:4px 10px; border-radius:12px;
+      border:1px solid var(--border2); background:var(--surface2);
+      font-size:11px; font-family:'Noto Sans KR',sans-serif;
+      cursor:pointer; color:var(--text-muted);
+    ">로그아웃</button>
+  </div>
 </div>
 
 <!-- MAIN -->
@@ -1319,6 +1391,20 @@ function loadFeedbackForDate(dateStr) {
   document.getElementById('feedbackDateLabel').textContent =
     `${m}월 ${d}일 (${DAY_NAMES[dow]})`;
 }
+
+function googleLogin() {
+  if (window._googleLogin) window._googleLogin();
+}
+
+function googleLogout() {
+  if (window._googleLogout) window._googleLogout();
+}
+
+// 로그인 후 데이터 재로드
+window._reloadData = async () => {
+  await loadState(viewYear, viewMonth);
+  renderAll();
+};
 
 function bindEvents() {
   document.getElementById('todoInput').addEventListener('keydown', e => { if(e.key==='Enter') addTodo(); });
