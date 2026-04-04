@@ -147,7 +147,6 @@
   .main-layout > .panel:nth-child(2) {
     display: flex;
     flex-direction: column;
-    overflow: hidden;
   }
 
   /* ===== 태블릿 (769px ~ 1100px) ===== */
@@ -659,20 +658,24 @@
   }
 
   .schedule-body {
-    overflow: hidden;
+    overflow-y: auto;
     display: block;
     width: 100%;
+    max-height: 600px;
   }
+
+  .schedule-body::-webkit-scrollbar { width: 4px; }
+  .schedule-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
   .schedule-body::-webkit-scrollbar { width: 3px; }
   .schedule-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
   .time-row {
     display: flex;
+    min-height: 36px;
     border-bottom: 1px solid var(--border);
     position: relative;
     transition: background 0.1s;
     align-items: flex-start;
-    overflow: hidden;
     box-sizing: border-box;
   }
 
@@ -1263,7 +1266,7 @@ function bindEvents() {
   document.getElementById('modalOverlay').addEventListener('click', function(e) {
     if(e.target === this) closeModal();
   });
-  window.addEventListener('resize', () => { setTimeout(fitScheduleToPanel, 100); });
+  window.addEventListener('resize', () => { });
 
 }
 
@@ -1614,48 +1617,7 @@ function deleteScheduleEvent(slotKey, id) {
   autoSave();
 }
 
-function fitScheduleToPanel() {
-  if (window.innerWidth <= 1100) return;
-
-  const col1 = document.querySelector('.main-layout > .panel:nth-child(1)');
-  const col2 = document.querySelector('.main-layout > .panel:nth-child(2)');
-  const scheduleBody = document.getElementById('scheduleBody');
-  const fbDiary = document.getElementById('fbDiary');
-  if (!col1 || !col2 || !scheduleBody || !fbDiary) return;
-
-  // 먼저 col2 시간표 높이 계산 (헤더 2개 제외)
-  const ph = col2.querySelector('.panel-header')?.offsetHeight || 0;
-  const sh = col2.querySelector('.schedule-header-row')?.offsetHeight || 0;
-
-  // col1 현재 높이
-  const col1H = col1.offsetHeight;
-
-  // col2에서 시간표에 줄 수 있는 높이 = col1H - 헤더들
-  const bodyH = col1H - ph - sh;
-  if (bodyH <= 0) return;
-
-  // scheduleBody 높이 적용
-  scheduleBody.style.height = bodyH + 'px';
-  scheduleBody.style.overflow = 'hidden';
-
-  // 각 time-row 균등 분배
-  const rows = scheduleBody.querySelectorAll('.time-row');
-  if (!rows.length) return;
-
-  const rowH = Math.floor(bodyH / rows.length);
-  const lastH = bodyH - rowH * (rows.length - 1);
-
-  rows.forEach((r, i) => {
-    const h = i === rows.length - 1 ? lastH : rowH;
-    r.style.height = h + 'px';
-    r.style.minHeight = h + 'px';
-    r.style.maxHeight = h + 'px';
-  });
-
-  // col2 높이를 col1과 맞추기
-  col2.style.height = col1H + 'px';
-  col2.style.overflow = 'hidden';
-}
+function fitScheduleToPanel() {}
 
 // ================================================================
 // MODAL
