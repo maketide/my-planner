@@ -10,7 +10,7 @@
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
@@ -30,6 +30,8 @@
   window._doc = doc;
   window._setDoc = setDoc;
   window._getDoc = getDoc;
+  window._onSnapshot = onSnapshot;
+  window._unsubscribe = null; // 실시간 리스너 해제 함수
   window._firebaseReady = false;
 
   // Google 로그인
@@ -1416,6 +1418,70 @@ function autoSave() {
   saveTimer = setTimeout(saveState, 800);
 }
 
+// ================================================================
+// 실시간 동기화 (onSnapshot)
+// ================================================================
+function startRealtimeSync() {
+  if (!window._firebaseReady || !window._db || !window._userId) return;
+  if (!window._onSnapshot) return;
+
+  // 기존 리스너 해제
+  if (window._unsubscribe) {
+    window._unsubscribe();
+    window._unsubscribe = null;
+  }
+
+  const docRef = window._doc(window._db, 'planners', window._userId, 'months', currentMonthKey);
+
+  window._unsubscribe = window._onSnapshot(docRef, (snap) => {
+    // 내가 저장 중일 때는 무시 (saveTimer 활성화 중)
+    if (saveTimer) return;
+
+    if (snap.exists()) {
+      try {
+        const d = snap.data();
+        const parsed = JSON.parse(d.data);
+        // 현재 state와 다를 때만 업데이트
+        if (JSON.stringify(parsed) !== JSON.stringify(state)) {
+          state = parsed;
+          state.todos = state.todos || [];
+          state.coreGoal = state.coreGoal || '';
+          state.feedbacks = state.feedbacks || {};
+          state.calEvents = state.calEvents || {};
+          state.scheduleEvents = state.scheduleEvents || {};
+          if (d.nextId) nextId = d.nextId;
+
+          // UI 갱신
+          renderAll();
+          showSyncIndicator();
+        }
+      } catch(e) {
+        console.warn('실시간 동기화 파싱 오류:', e);
+      }
+    }
+  }, (e) => {
+    console.warn('실시간 동기화 오류:', e);
+  });
+}
+
+function stopRealtimeSync() {
+  if (window._unsubscribe) {
+    window._unsubscribe();
+    window._unsubscribe = null;
+  }
+}
+
+function showSyncIndicator() {
+  const el = document.getElementById('saveIndicator');
+  const txt = document.getElementById('saveText');
+  el.classList.add('saved');
+  txt.textContent = '🔄 동기화됨';
+  setTimeout(() => {
+    el.classList.remove('saved');
+    txt.textContent = '저장됨';
+  }, 2000);
+}
+
 function showSaved(fbOk) {
   const el = document.getElementById('saveIndicator');
   const txt = document.getElementById('saveText');
@@ -1463,6 +1529,8 @@ async function changeMonth(delta) {
   if (viewMonth < 0)  { viewMonth = 11; viewYear--; }
 
   await loadState(viewYear, viewMonth);
+  stopRealtimeSync();
+  startRealtimeSync();
 
   // Set selected date to 1st of new month
   selectedDate = `${viewYear}-${String(viewMonth+1).padStart(2,'0')}-01`;
@@ -1555,6 +1623,7 @@ function showLoginError(msg) {
 }
 
 async function doLogout() {
+  stopRealtimeSync();
   if (window._logout) await window._logout();
 }
 
