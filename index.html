@@ -11,7 +11,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBQFAAzz2ghuPYsyqLfwDVx-f0r_XF4G08",
@@ -31,6 +31,26 @@
   window._setDoc = setDoc;
   window._getDoc = getDoc;
   window._firebaseReady = false;
+
+  // Google 로그인
+  const googleProvider = new GoogleAuthProvider();
+  window._googleLogin = async () => {
+    const isStandalone = window.navigator.standalone === true;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    try {
+      if (isStandalone || isMobile) {
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        await signInWithPopup(auth, googleProvider);
+      }
+      return { success: true };
+    } catch(e) {
+      return { success: false, msg: 'Google 로그인에 실패했어요.' };
+    }
+  };
+
+  // redirect 결과 처리
+  getRedirectResult(auth).catch(e => console.warn('redirect 결과:', e));
 
   // 회원가입
   window._signUp = async (email, password) => {
@@ -1212,7 +1232,7 @@
       ">
     </div>
 
-    <div style="display:flex; gap:8px; margin-bottom:12px;">
+    <div style="display:flex; gap:8px; margin-bottom:10px;">
       <button onclick="doSignIn()" style="
         flex:1; padding:11px; background:#2d4a3e; color:white;
         border:none; border-radius:8px; font-size:13px;
@@ -1224,6 +1244,24 @@
         font-family:'Noto Sans KR',sans-serif; cursor:pointer;
       ">회원가입</button>
     </div>
+
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      <div style="flex:1; height:1px; background:#e8e4dc;"></div>
+      <span style="font-size:11px; color:#a39e94;">또는</span>
+      <div style="flex:1; height:1px; background:#e8e4dc;"></div>
+    </div>
+
+    <button onclick="doGoogleLogin()" style="
+      width:100%; padding:10px; background:white;
+      border:1px solid #d6d0c4; border-radius:8px; font-size:13px;
+      font-family:'Noto Sans KR',sans-serif; cursor:pointer;
+      display:flex; align-items:center; justify-content:center; gap:8px;
+      margin-bottom:10px;
+    ">
+      <img src="https://www.google.com/favicon.ico" width="16" height="16">
+      Google 계정으로 로그인
+    </button>
+
     <button onclick="hideLoginModal()" style="
       width:100%; padding:8px; background:none;
       border:none; font-size:12px; color:#a39e94;
@@ -1469,6 +1507,17 @@ function showLoginModal() {
 
 function hideLoginModal() {
   document.getElementById('loginModal').style.display = 'none';
+}
+
+async function doGoogleLogin() {
+  hideLoginModal();
+  if (window._googleLogin) {
+    const result = await window._googleLogin();
+    if (result && !result.success) {
+      showLoginModal();
+      showLoginError(result.msg || 'Google 로그인에 실패했어요.');
+    }
+  }
 }
 
 async function doSignIn() {
